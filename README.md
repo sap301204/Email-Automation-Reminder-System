@@ -1,91 +1,75 @@
-Email Automation & Reminder System
+# Email Automation & Reminder System
 
-A fully modular, production-oriented Email Automation & Reminder System built with Python (FastAPI + SQLAlchemy) and a Next.js dashboard.
-The system schedules one-time or recurring reminders, renders dynamic templates, sends emails asynchronously via SMTP, and tracks opens/clicks via webhooks.
+Industry-oriented Email Automation & Reminder System built with **Python (FastAPI)** and a small **Next.js** dashboard. Supports scheduled and recurring reminders (RRULE), template rendering (Jinja2 + Markdown), async sending via SMTP (aiosmtplib), and basic tracking (open pixel + click redirect). SQLite used by default; can be swapped for Postgres.
 
-🚀 Features
+## Features
+- Create Contacts, Templates, Campaigns, and Reminders via API or UI
+- RRULE recurrence support (RFC5545)
+- Jinja2 templating + Markdown -> HTML rendering
+- Async SMTP sending with retries & basic idempotency
+- Open pixel and click redirect endpoints for tracking
+- Minimal Next.js client demo for quick testing
 
-✔ Create Contacts, Templates, Campaigns, Reminders
+## Tech Stack
+- Python 3.11+, FastAPI, SQLAlchemy
+- aiosmtplib (SMTP sending)
+- Jinja2, markdown, python-dateutil
+- SQLite (default), Postgres supported
 
-✔ Schedule recurring reminders using RRULE
+## Quickstart (local)
+1. Clone:
+   ```bash
+   git clone <repo-url>
+   cd email-automation
+   ```
 
-✔ Jinja2 + Markdown → HTML templating
+2. Setup:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
 
-✔ Async SMTP sender (aiosmtplib)
+3. Create DB:
+   ```bash
+   mkdir -p db
+   sqlite3 db/email.db < db/schema.sql
+   ```
 
-✔ Worker loop for automated dispatch
+4. Set SMTP env vars (example for Gmail app password):
+   ```bash
+   export SMTP_HOST=smtp.gmail.com
+   export SMTP_PORT=465
+   export SMTP_USER=youremail@gmail.com
+   export SMTP_PASS=<app-password>
+   ```
 
-✔ Email tracking (open pixel + click redirect)
+5. Start API:
+   ```bash
+   uvicorn api.app:app --reload --port 8000
+   ```
 
-✔ SQLite by default (Postgres-ready)
+6. Start worker:
+   ```bash
+   python run_worker.py
+   ```
 
-✔ Minimal Next.js dashboard for easy testing
+7. Use Postman/curl or open the Next.js demo to create contacts/templates/campaigns/reminders. Example curl calls are in the docs.
 
-🧱 Tech Stack
-Layer	Technology
-API	FastAPI
-DB	SQLite (with SQLAlchemy)
-Rendering	Jinja2 + Markdown
-Scheduling	APScheduler-style async loop
-Email Sender	aiosmtplib
-Dashboard	Next.js (App Router)
-Worker	Python async cron-loop
-📁 Project Structure
+## How it works (summary)
+- Create a Reminder (one-off or with RRULE) via API.
+- Worker loop runs every 15s:
+  - `plan_next_fires`: expands RRULEs to create `messages` rows when due.
+  - `dispatch_due`: selects scheduled messages whose `scheduled_at_utc <= now` and sends them.
+- After sending, `messages` row updated to `sent` or `failed`.
+- Open pixel `/t/o/{message_id}.png` and click redirect `/t/c/{message_id}` update status.
 
-email-automation/
-├─ api/
-├─ src/
-│  ├─ renderer.py
-│  ├─ mailer.py
-│  ├─ scheduler.py
-│  ├─ webhooks.py
-├─ db/
-├─ apps/web/
-├─ run_worker.py
-├─ requirements.txt
-├─ README.md
-├─ LICENSE
-└─ .gitignore
+## Safety & Production Notes
+- Respect unsubscribe flags (`contacts.unsubscribed`).
+- Add rate-limiting when sending at scale.
+- Use Postgres and a proper queue (Redis + RQ/Celery) for scale.
+- Use DKIM/SPF and provider APIs for better deliverability.
+- Add observability (metrics, logs, Sentry).
 
-🛠 Setup Instructions
-1. Install dependencies
-pip install -r requirements.txt
-2. Initialize the database
-sqlite3 db/email.db < db/schema.sql
-3. Set SMTP environment variables
-(Example for Gmail App Password)
-export SMTP_HOST=smtp.gmail.com
-export SMTP_PORT=465
-export SMTP_USER=youremail@gmail.com
-export SMTP_PASS=your-app-password
-4. Run the FastAPI backend
-uvicorn api.app:app --reload --port 8000
-5. Start the Worker Scheduler
-python run_worker.py
-6. Launch the Dashboard (Next.js)
-cd apps/web
-npm install
-npm run dev
-
-📦 API Endpoints
-
-POST /contacts
-POST /templates
-POST /campaigns
-POST /reminders
-GET /messages/due
-GET /health
-Tracking:
-/t/o/{message_id}.png → open
-/t/c/{message_id}?url=... → click
-
-🛡 Production Notes
-
-Add SPF + DKIM for better deliverability
-Move to Postgres for scaling
-Add Redis queue for large-volume sends
-Add rate-limits & unsubscribe handling
-
-📄 License
-
-This project is licensed under the MIT License — free to use, modify, and distribute.
+## License
+MIT — see LICENSE file.
